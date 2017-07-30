@@ -1,0 +1,7 @@
+void main () {
+ int a = 10;
+ int b = 7;
+ int c;
+ c = a + b;
+ Printf("The result is:", c, "/n");
+};
