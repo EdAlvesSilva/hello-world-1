@@ -1,4 +1,3 @@
 # hello-world
-Repositorio publico com codigos de prototipos.Sinta-se livre para usar qualquer código daqui.
-Sem ingles.
+A repository with prototype code.Feel free to use.
 
