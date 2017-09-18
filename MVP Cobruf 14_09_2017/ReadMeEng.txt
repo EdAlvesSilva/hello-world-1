@@ -26,3 +26,9 @@ MVPCobruf_0_4_com_NeoGPS : This code is the MVPCobruf_0_2 code with NeoGPS in th
 		SRAM Use : 80%
 		CANNOT debug via SerialMonitor, only GY80IMU variables are debugable and when debugging the GPS data is corrupted
 
+MVPCobruf_0_6_GPS_FAT16_LoRa : This code is the MVPCobruf_0_5 (not yet in this repo) with LoRa code
+		HAS TO BE VALIDATED YET
+		SRAM Use : 67%
+		CANNOT debug via SerialMonitor, only GY80IMU variables are debugable and when debugging the GPS data is corrupted
+			
+
