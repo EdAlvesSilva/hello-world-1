@@ -26,3 +26,6 @@ MVPCobruf_0_4_com_NeoGPS : Esse código é o MVPCobruf_0_2 com o NeoGPS no lugar d
 		Consumo de SRAM : 80%
 		NAO pode debugar via SerialMonitor, apenas as variáveis do GY80IMU são debugáveis and quando está debugando os dados do GPS são corrompidas
 
+MVPCobruf_0_6_GPS_FAT16_LoRa : Esse codigo é o MVPCobruf_0_5 (Usando Fat16.h) com o LoRa adicionado;
+		AINDA NÃO FOI VALIDADO; NECESSARIO BAIXAR RadioHead.zip (NESSE REPO) PARA SER USADA
+		Consumo de SRAM : 67%
