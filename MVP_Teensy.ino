@@ -16,10 +16,10 @@
  */
 
 /* GY-80 Pins
- *  Vcc_In <----------------------> Arduino 5v
- *  Gnd    <----------------------> Arduino Gnd
- *  SDA    <----------------------> A4
- *  SCL    <----------------------> A5
+ *  Vcc_In <----------------------> Teensy 3.3V
+ *  Gnd    <----------------------> Teensy Gnd
+ *  SDA    <----------------------> 18
+ *  SCL    <----------------------> 19
  */
 
 #include <GY80TEENSY.h> //Include the library GY80TEENSY
@@ -48,8 +48,8 @@ bool sdLog = 1; //Prints the values of IMU_s in SD card
 float Delay_Time = 500;
 
 //Notification leds
-int SdLed = 30;
-int RecoveryLed = 29;
+int SdLed = 3;
+int RecoveryLed = 4;
 int SdRecording = 13;
 
 //Recovery variables
