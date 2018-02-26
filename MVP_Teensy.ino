@@ -1,4 +1,4 @@
-/*  Code written by Marcelo Maroñas @ Minerva Rockets (Federal University of Rio de Janeiro Rocketry Team) - February 20, 2018
+/*  Code written by Marcelo Maroñas, Eduardo Alves and Lucas Ribeiro @ Minerva Rockets (Federal University of Rio de Janeiro Rocketry Team) - February 20, 2018
  *  This is an adaptation necessary for using the GY80 IMU module with the microcontroller Teensy version 3.6.
  *  This the very basic code using the library.The library was written using the best libraries I could find at the moment for each GY80 sub-module (Gyro, Accel, Magne, BMP085) and
  *  putting them together in an lightweight and easy to understand code.Dont use it with Arduino, there's a lighter version of GY80 library that doesnt need so much memory, check in my GitHub.
@@ -25,7 +25,22 @@
 #include <GY80TEENSY.h> //Include the library GY80TEENSY
 #include <SD.h>
 #include <SPI.h>
+#include <SoftwareSerial.h>
+#include <RH_RF95.h>
 
+
+#define RFM95_CS 15
+#define RFM95_RST 17
+#define RFM95_INT 16
+
+#define RF95_FREQ 915.0
+
+RH_RF95 rf95(RFM95_CS, RFM95_INT);
+
+const int sentenceSize = 80;
+bool gpsRead;
+char sentence[sentenceSize];
+char * field;
 //Variable definition is within the library, those are the sensors used.The library needs to be updated for multiples GY80 use.
 //Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
 //Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
@@ -57,8 +72,31 @@ float LastAltitude;
 
 void setup() {
   Serial.begin(9600); //Initialize Serial Port at 9600 baudrate.
-   
+  Serial2.begin(9600); //Initialize GPS port at 9600 baudrate.
   pinMode(RecoveryLed, OUTPUT); 
+
+  pinMode(RFM95_RST, OUTPUT);
+  digitalWrite(RFM95_RST, HIGH);
+
+  delay(100);
+  // Reinicialização Manual
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
+  while (!rf95.init()) {
+    Serial.println("LoRa nao inicializou");
+    Serial.println("Realizando nova tentativa...");
+  }
+  Serial.println("LoRa inicializado!");
+
+  if (!rf95.setFrequency(RF95_FREQ)) {
+    Serial.println("setFrequency failed");
+    while (1);
+  }
+
+  rf95.setTxPower(23, false);
 
   //SD card setup
   pinMode(SdRecording, OUTPUT); 
@@ -116,6 +154,30 @@ void loop() {
      }
   }
 
+
+  static int i = 0;
+  if (Serial2.available())
+  {
+    gpsRead = true;
+    while (gpsRead) 
+    {
+      char ch = Serial2.read();
+      if (ch != '\n' && i < sentenceSize)
+      {
+        sentence[i] = ch;
+        i++;
+      }
+      else
+      {
+        sentence[i] = '\0';
+        i = 0;
+        gpsRead = false;
+      }
+    }
+  }
+
+
+
   //SD logging code
   if (sdLog) {
      myFile = SD.open("DADOSMVP.txt", FILE_WRITE);
@@ -134,6 +196,7 @@ void loop() {
           myFile.print(struct_imu.magnetometro[0]);myFile.print(" ,");
           myFile.print(struct_imu.magnetometro[1]);myFile.print(" ,");
           myFile.println(struct_imu.magnetometro[2]);
+          displayGPS();
      }
      digitalWrite(SdRecording, HIGH);
      myFile.close();
@@ -156,4 +219,141 @@ void loop() {
       Serial.println(struct_imu.magnetometro[2]);
   } 
   LastAltitude = struct_imu.barometro[2];
+
+
+  float lat, lon;
+  getField(field,3);
+  lat = String(field).toFloat();
+
+  getField(field,5);
+  lon = String(field).toFloat();
+
+  char c_lat, c_long;
+
+  getField(field,4);
+  c_lat = field[0];
+  
+  getField(field,6);
+  c_long = field[0];
+  
+  
+  uint8_t radiopacket[130];
+  radiopacket[0] = (uint8_t)'M';
+  radiopacket[1] = (uint8_t)'R';
+  radiopacket[2] = ((uint32_t)lat & 0x000000ff);
+  radiopacket[3] = ((uint32_t)lat & 0x0000ff00) >> 8;
+  radiopacket[4] = ((uint32_t)lat & 0x00ff0000) >> 16;
+  radiopacket[5] = ((uint32_t)lat & 0xff000000) >> 24;
+  radiopacket[6] = ((uint32_t)lon & 0x000000ff);
+  radiopacket[7] = ((uint32_t)lon & 0x0000ff00) >> 8;
+  radiopacket[8] = ((uint32_t)lon & 0x00ff0000) >> 16;
+  radiopacket[9] = ((uint32_t)lon & 0xff000000) >> 24;
+  radiopacket[10] = (uint8_t)c_lat;
+  radiopacket[11] = (uint8_t)c_long;
+  radiopacket[12] = (uint8_t)'O';
+  radiopacket[13] = (uint8_t)'I';
+  radiopacket[14] = ((uint32_t)struct_imu.barometro[0] & 0x000000ff);
+  radiopacket[15] = ((uint32_t)struct_imu.barometro[0] & 0x0000ff00) >> 8;
+  radiopacket[16] = ((uint32_t)struct_imu.barometro[0] & 0x00ff0000) >> 16;
+  radiopacket[17] = ((uint32_t)struct_imu.barometro[0] & 0xff000000) >> 24;
+  radiopacket[18] = ((uint32_t)struct_imu.barometro[1] & 0x000000ff);
+  radiopacket[19] = ((uint32_t)struct_imu.barometro[1] & 0x0000ff00) >> 8;
+  radiopacket[20] = ((uint32_t)struct_imu.barometro[1] & 0x00ff0000) >> 16;
+  radiopacket[21] = ((uint32_t)struct_imu.barometro[1] & 0xff000000) >> 24;
+  radiopacket[22] = ((uint32_t)struct_imu.barometro[2] & 0x000000ff);
+  radiopacket[23] = ((uint32_t)struct_imu.barometro[2] & 0x0000ff00) >> 8;
+  radiopacket[24] = ((uint32_t)struct_imu.barometro[2] & 0x00ff0000) >> 16;
+  radiopacket[25] = ((uint32_t)struct_imu.barometro[2] & 0xff000000) >> 24;
+  radiopacket[26] = ((uint32_t)struct_imu.barometro[3] & 0x000000ff);
+  radiopacket[27] = ((uint32_t)struct_imu.barometro[3] & 0x0000ff00) >> 8;
+  radiopacket[28] = ((uint32_t)struct_imu.barometro[3] & 0x00ff0000) >> 16;
+  radiopacket[29] = ((uint32_t)struct_imu.barometro[3] & 0xff000000) >> 24;
+  radiopacket[30] = ((uint32_t)struct_imu.acelerometro[0] & 0x000000ff);
+  radiopacket[31] = ((uint32_t)struct_imu.acelerometro[0] & 0x0000ff00) >> 8;
+  radiopacket[32] = ((uint32_t)struct_imu.acelerometro[0] & 0x00ff0000) >> 16;
+  radiopacket[33] = ((uint32_t)struct_imu.acelerometro[0] & 0xff000000) >> 24;  
+  radiopacket[34] = ((uint32_t)struct_imu.acelerometro[1] & 0x000000ff);
+  radiopacket[35] = ((uint32_t)struct_imu.acelerometro[1] & 0x0000ff00) >> 8;
+  radiopacket[36] = ((uint32_t)struct_imu.acelerometro[1] & 0x00ff0000) >> 16;
+  radiopacket[37] = ((uint32_t)struct_imu.acelerometro[1] & 0xff000000) >> 24;  
+  radiopacket[38] = ((uint32_t)struct_imu.acelerometro[2] & 0x000000ff);
+  radiopacket[39] = ((uint32_t)struct_imu.acelerometro[2] & 0x0000ff00) >> 8;
+  radiopacket[40] = ((uint32_t)struct_imu.acelerometro[2] & 0x00ff0000) >> 16;
+  radiopacket[41] = ((uint32_t)struct_imu.acelerometro[2] & 0xff000000) >> 24; 
+  radiopacket[42] = ((uint32_t)struct_imu.giroscopio[0] & 0x000000ff);
+  radiopacket[43] = ((uint32_t)struct_imu.giroscopio[0] & 0x0000ff00) >> 8;
+  radiopacket[44] = ((uint32_t)struct_imu.giroscopio[0] & 0x00ff0000) >> 16;
+  radiopacket[45] = ((uint32_t)struct_imu.giroscopio[0] & 0xff000000) >> 24;  
+  radiopacket[46] = ((uint32_t)struct_imu.giroscopio[1] & 0x000000ff);
+  radiopacket[47] = ((uint32_t)struct_imu.giroscopio[1] & 0x0000ff00) >> 8;
+  radiopacket[48] = ((uint32_t)struct_imu.giroscopio[1] & 0x00ff0000) >> 16;
+  radiopacket[49] = ((uint32_t)struct_imu.giroscopio[1] & 0xff000000) >> 24;  
+  radiopacket[50] = ((uint32_t)struct_imu.giroscopio[2] & 0x000000ff);
+  radiopacket[51] = ((uint32_t)struct_imu.giroscopio[2] & 0x0000ff00) >> 8;
+  radiopacket[52] = ((uint32_t)struct_imu.giroscopio[2] & 0x00ff0000) >> 16;
+  radiopacket[53] = ((uint32_t)struct_imu.giroscopio[2] & 0xff000000) >> 24;  
+  radiopacket[54] = ((uint32_t)struct_imu.magnetometro[0] & 0x000000ff);
+  radiopacket[55] = ((uint32_t)struct_imu.magnetometro[0] & 0x0000ff00) >> 8;
+  radiopacket[56] = ((uint32_t)struct_imu.magnetometro[0] & 0x00ff0000) >> 16;
+  radiopacket[57] = ((uint32_t)struct_imu.magnetometro[0] & 0xff000000) >> 24;  
+  radiopacket[58] = ((uint32_t)struct_imu.magnetometro[1] & 0x000000ff);
+  radiopacket[59] = ((uint32_t)struct_imu.magnetometro[1] & 0x0000ff00) >> 8;
+  radiopacket[60] = ((uint32_t)struct_imu.magnetometro[1] & 0x00ff0000) >> 16;
+  radiopacket[61] = ((uint32_t)struct_imu.magnetometro[1] & 0xff000000) >> 24;  
+  radiopacket[62] = ((uint32_t)struct_imu.magnetometro[2] & 0x000000ff);
+  radiopacket[63] = ((uint32_t)struct_imu.magnetometro[2] & 0x0000ff00) >> 8;
+  radiopacket[64] = ((uint32_t)struct_imu.magnetometro[2] & 0x00ff0000) >> 16;
+  radiopacket[65] = ((uint32_t)struct_imu.magnetometro[2] & 0xff000000) >> 24;  
+ //Dados seguintes devem ser inseridos da mesma forma
+  
+  rf95.send(radiopacket, sizeof(radiopacket));
+
+
+  rf95.waitPacketSent();
+  // Espera o pacote ser enviando
+  
+} 
+
+
+void displayGPS()
+{
+  char field[20];
+  getField(field, 0);
+  
+  if (strcmp(field, "$GPRMC") == 0)
+  {
+    myFile.print("Lat: ");
+    getField(field, 3);  // number
+    myFile.print(field);
+    getField(field, 4); // N/S
+    myFile.println(field);
+    
+    myFile.print("Long: ");
+    getField(field, 5);  // number
+    myFile.print(field);
+    getField(field, 6);  // E/W
+    myFile.println(field);
+  }
 }
+
+void getField(char* buffer, int index)
+{
+  int sentencePos = 0;
+  int fieldPos = 0;
+  int commaCount = 0;
+  while (sentencePos < sentenceSize)
+  {
+    if (sentence[sentencePos] == ',')
+    {
+      commaCount ++;
+      sentencePos ++;
+    }
+    if (commaCount == index)
+    {
+      buffer[fieldPos] = sentence[sentencePos];
+      fieldPos ++;
+    }
+    sentencePos ++;
+  }
+  buffer[fieldPos] = '\0';
+} 
